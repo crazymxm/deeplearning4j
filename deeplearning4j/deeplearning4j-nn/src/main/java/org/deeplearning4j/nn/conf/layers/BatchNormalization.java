@@ -56,6 +56,8 @@ public class BatchNormalization extends FeedForwardLayer {
     protected double gamma = 1.0;
     protected double beta = 0.0;
     protected boolean lockGammaBeta = false;
+    protected boolean cudnnAllowFallback = true;
+    protected boolean useLogStd = false;            //Default for deserialized models (1.0.0-beta3) and earlier: store variance as variance. Post 1.0.0-beta3: use log stdev instead
 
     private BatchNormalization(Builder builder) {
         super(builder);
@@ -65,6 +67,8 @@ public class BatchNormalization extends FeedForwardLayer {
         this.gamma = builder.gamma;
         this.beta = builder.beta;
         this.lockGammaBeta = builder.lockGammaBeta;
+        this.cudnnAllowFallback = builder.cudnnAllowFallback;
+        this.useLogStd = builder.useLogStd;
         initializeConstraints(builder);
     }
 
@@ -175,6 +179,7 @@ public class BatchNormalization extends FeedForwardLayer {
                 return iUpdater;
             case BatchNormalizationParamInitializer.GLOBAL_MEAN:
             case BatchNormalizationParamInitializer.GLOBAL_VAR:
+            case BatchNormalizationParamInitializer.GLOBAL_LOG_STD:
                 return new NoOp();
             default:
                 throw new IllegalArgumentException("Unknown parameter: \"" + paramName + "\"");
@@ -190,7 +195,7 @@ public class BatchNormalization extends FeedForwardLayer {
         val numParams = initializer().numParams(this);
         int updaterStateSize = 0;
 
-        for (String s : BatchNormalizationParamInitializer.keys()) {
+        for (String s : BatchNormalizationParamInitializer.getInstance().paramKeys(this)) {
             updaterStateSize += getUpdaterByParam(s).stateSize(nOut);
         }
 
@@ -225,6 +230,8 @@ public class BatchNormalization extends FeedForwardLayer {
         protected double beta = 0.0;
         protected List<LayerConstraint> betaConstraints;
         protected List<LayerConstraint> gammaConstraints;
+        protected boolean cudnnAllowFallback = true;
+        protected boolean useLogStd = true;
 
         public Builder(double decay, boolean isMinibatch) {
             this.decay = decay;
@@ -341,6 +348,34 @@ public class BatchNormalization extends FeedForwardLayer {
          */
         public Builder constrainGamma(LayerConstraint... constraints) {
             this.gammaConstraints = Arrays.asList(constraints);
+            return this;
+        }
+
+        /**
+         * When using CuDNN and an error is encountered, should fallback to the non-CuDNN implementatation be allowed?
+         * If set to false, an exception in CuDNN will be propagated back to the user. If false, the built-in (non-CuDNN)
+         * implementation for BatchNormalization will be used
+         *
+         * @param allowFallback Whether fallback to non-CuDNN implementation should be used
+         */
+        public Builder cudnnAllowFallback(boolean allowFallback) {
+            this.cudnnAllowFallback = allowFallback;
+            return this;
+        }
+
+        /**
+         * How should the moving average of variance be stored?
+         * Two different parameterizations are supported.
+         * useLogStd(false): equivalent to 1.0.0-beta3 and earlier. The variance "parameter" is stored directly as variable<br>
+         * useLogStd(true): (Default) variance is stored as log10(stdev)<br>
+         * The motivation here is for numerical stability (FP16 etc) and also distributed training: storing the variance directly
+         * can cause numerical issues. For example, a standard deviation of 1e-3 (something that could be encountered in practice)
+         * gives a variance of 1e-6, which can be problematic for 16-bit floating point
+         * @param useLogStd
+         * @return
+         */
+        public Builder useLogStd(boolean useLogStd){
+            this.useLogStd = useLogStd;
             return this;
         }
 

@@ -18,6 +18,7 @@
 from .java_classes import *
 import numpy as np
 import ctypes
+import warnings
 
 
 # Java instance initializations
@@ -32,8 +33,17 @@ def set_context_dtype(dtype):
     # Arguments
         dtype: 'float' or 'double'
     '''
-    dtype = DataTypeUtil.getDtypeFromContext(dtype)
-    DataTypeUtil.setDTypeForContext(dtype)
+    dtype_map = {
+        'float32': 'float',
+        'float64': 'double'
+    }
+    dtype = dtype_map.get(dtype, dtype)
+    if dtype not in ['float', 'double']:
+        raise ValueError("Invalid dtype '{}'. Available dtypes are 'float' and 'double'.".format(dtype))
+    dtype_ = DataTypeUtil.getDtypeFromContext(dtype)
+    DataTypeUtil.setDTypeForContext(dtype_)
+    if get_context_dtype() != dtype:
+        warnings.warn("Can not set context dtype now. Set it at the beginning of your program.")
 
 
 def get_context_dtype():
@@ -72,8 +82,8 @@ def get_np_dtype(nd4j_dtype):
     Gets the equivalent numpy data type
     for a given nd4j data type.
     # Arguments:
-        nd4j_dtype : Nd4j data type. One of 
-        ['double', 'float', 'half']
+        nd4j_dtype : Nd4j data type. One of
+         ['double', 'float', 'half']
     '''
     mapping = {
         'double': np.float64,
@@ -100,7 +110,7 @@ def _from_numpy(np_array):
     # Convert the numpy array to nd4j context dtype
     required_dtype = get_np_dtype(get_context_dtype())
     if np_array.dtype != required_dtype:
-        raise Exception("{0} is required.".format(repr(np_array.dtype)))
+        raise Exception("{} is required. Got {} instead.".format(repr(required_dtype), np_array.dtype))
 
     # Nd4j does not have 1-d vectors.
     # So we add a dummy dimension.
@@ -192,7 +202,7 @@ def broadcast_like(y, x):
     ny = len(ys)
     if nx > ny:
         diff = nx - ny
-        ys += [1] * diff
+        ys = ([1] * diff) + ys
         y = y.reshape(ys)
         ny = nx
     elif ny > nx:
@@ -228,12 +238,12 @@ def broadcast(x, y):
     ny = len(ys)
     if nx > ny:
         diff = nx - ny
-        ys += [1] * diff
+        ys = ([1] * diff) + ys
         y = y.reshape(*ys)
         ny = nx
     elif ny > nx:
         diff = ny - nx
-        xs += [1] * diff
+        xs = ([1] * diff) + xs
         x = x.reshape(*xs)
         nx = ny
     xt = []
@@ -299,10 +309,6 @@ class ndarray(object):
     def ndim(self):
         return len(self.array.shape())
 
-    @property
-    def ndim(self):
-        return len(self.array.shape())
-
     def __getitem__(self, key):
         if type(key) is int:
             return ndarray(self.array.get(NDArrayIndex.point(key)))
@@ -325,7 +331,7 @@ class ndarray(object):
             else:
                 return ndarray(self.array.get(NDArrayIndex.interval(start, step, stop)))
         if type(key) is list:
-            raise NotImplemented(
+            raise NotImplementedError(
                 'Sorry, this type of indexing is not supported yet.')
         if type(key) is tuple:
             key = list(key)
@@ -356,7 +362,7 @@ class ndarray(object):
                             args.append(NDArrayIndex.interval(
                                 start, step, stop))
                 elif type(dim) in (list, tuple):
-                    raise NotImplemented(
+                    raise NotImplementedError(
                         'Sorry, this type of indexing is not supported yet.')
             return ndarray(self.array.get(*args))
 
@@ -388,6 +394,11 @@ class ndarray(object):
         other = _indarray(other)
         x, y = broadcast(self.array, other)
         return ndarray(x.div(y))
+
+    def __pow__(self, other):
+        other = _indarray(other)
+        x, y = broadcast(self.array, other)
+        return ndarray(Transforms.pow(x, y))
 
     def __iadd__(self, other):
         other = _indarray(other)
@@ -423,6 +434,15 @@ class ndarray(object):
         else:
             x, y = broadcast(self.array, other)
             self.array = x.div(y)
+        return self
+
+    def __ipow__(self, other):
+        other = _indarray(other)
+        if self.array.shape() == other.shape():
+            self.array = self.array.divi(other)
+        else:
+            x, y = broadcast(self.array, other)
+            self.array = Transforms.pow(x, y)
         return self
 
     def __getattr__(self, attr):

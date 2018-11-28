@@ -2232,3 +2232,164 @@ TEST_F(DeclarableOpsTests9, batchnorm_bp_test3) {
     ASSERT_TRUE(isGradCorrect);
 }
 
+////////////////////////////////////////////////////////////////////
+TEST_F(DeclarableOpsTests9, gru_cell_bp_test1) {
+
+    const int bS = 2;
+    const int iS = 3;
+    const int nU = 4;
+
+    NDArray<double> x     ('c', {bS, iS});
+    NDArray<double> h0    ('c', {bS, nU});
+    NDArray<double> Wx    ('c', {iS, 3*nU});
+    NDArray<double> Wh    ('c', {nU, 3*nU});
+    NDArray<double> b     ('c', {3*nU});
+    NDArray<double> dLdh  ('c', {bS, nU});
+
+    x.linspace(0.5, 0.5);
+    h0 = 1.;
+    Wx = 0.003;
+    Wh = 0.006;
+    b  = 0.5;
+
+    const OpArgsHolder<double> argsHolderFF({&x, &h0, &Wx, &Wh, &b}, {}, {});
+    const OpArgsHolder<double> argsHolderBP({&x, &h0, &Wx, &Wh, &b, &dLdh}, {}, {});    
+
+    nd4j::ops::gruCell<double> opFF;
+    nd4j::ops::gruCell_bp<double> opBP;
+
+    const bool isGradCorrect = GradCheck::checkGrad(opFF, opBP, argsHolderFF, argsHolderBP);
+
+    ASSERT_TRUE(isGradCorrect);
+}
+
+////////////////////////////////////////////////////////////////////
+TEST_F(DeclarableOpsTests9, gru_cell_bp_test2) {
+
+    const int bS = 2;
+    const int iS = 3;
+    const int nU = 4;
+
+    NDArray<double> x     ('c', {bS, iS});
+    NDArray<double> h0    ('c', {bS, nU});
+    NDArray<double> Wx    ('c', {iS, 3*nU});
+    NDArray<double> Wh    ('c', {nU, 3*nU});
+    NDArray<double> b     ('c', {3*nU});
+    NDArray<double> dLdh  ('c', {bS, nU});
+  
+    x.linspace(0.5, 0.5);
+    h0 = 1.;
+    Wx = 0.003;
+    Wh = 0.006;
+    b  = 0.;
+
+    const OpArgsHolder<double> argsHolderFF({&x, &h0, &Wx, &Wh, &b}, {}, {});
+    const OpArgsHolder<double> argsHolderBP({&x, &h0, &Wx, &Wh, &b, &dLdh}, {}, {});    
+
+    nd4j::ops::gruCell<double> opFF;
+    nd4j::ops::gruCell_bp<double> opBP;
+
+    const bool isGradCorrect = GradCheck::checkGrad(opFF, opBP, argsHolderFF, argsHolderBP);
+
+    ASSERT_TRUE(isGradCorrect);
+}
+
+////////////////////////////////////////////////////////////////////
+TEST_F(DeclarableOpsTests9, gru_cell_bp_test3) {
+
+    const int bS = 2;
+    const int iS = 3;
+    const int nU = 4;
+
+    NDArray<double> x     ('c', {bS, iS});
+    NDArray<double> h0    ('c', {bS, nU});
+    NDArray<double> Wx    ('c', {iS, 3*nU});
+    NDArray<double> Wh    ('c', {nU, 3*nU});
+    NDArray<double> b     ('c', {3*nU});
+    NDArray<double> dLdh  ('c', {bS, nU});
+    // NDArray<double> dLdWx0('c', {iS, 3*nU});
+    // NDArray<double> dLdWh0('c', {nU, 3*nU});
+    // NDArray<double> dLdb0 ('c', {3*nU});
+
+    x = 1.;
+    h0 = 0.0;
+    Wx = 0.0;
+    Wh = 0.0;
+    b  = 0.5;
+
+    const OpArgsHolder<double> argsHolderFF({&x, &h0, &Wx, &Wh, &b}, {}, {});
+    const OpArgsHolder<double> argsHolderBP({&x, &h0, &Wx, &Wh, &b, &dLdh}, {}, {});    
+
+    nd4j::ops::gruCell<double> opFF;
+    nd4j::ops::gruCell_bp<double> opBP;
+
+    const bool isGradCorrect = GradCheck::checkGrad(opFF, opBP, argsHolderFF, argsHolderBP);
+
+    ASSERT_TRUE(isGradCorrect);
+}
+
+////////////////////////////////////////////////////////////////////
+TEST_F(DeclarableOpsTests9, Cholesky_Test_1) {
+
+    NDArray<double> x('c', {3, 3}, {4,12,-16, 12 ,37,-43, -16, -43, 98});
+    NDArray<double> exp('c', {3,3}, {2.,  0.,  0., 6., 1.,  0., -8.,  5.,  3.});
+
+    nd4j::ops::cholesky<double> op;
+
+    auto result = op.execute({&x}, {}, {});
+    ASSERT_EQ(result->status(), ND4J_STATUS_OK);
+    auto res = result->at(0);
+    //res->printIndexedBuffer("Output for Cholesky");
+    ASSERT_TRUE(exp.equalsTo(res));
+    delete result;
+}
+
+////////////////////////////////////////////////////////////////////
+TEST_F(DeclarableOpsTests9, Cholesky_Test_2) {
+
+    NDArray<double> x('c', {2, 3, 3}, {4, 12,-16, 12 ,37,-43, -16, -43, 98, 1, 1, 1, 1, 2, 2, 1, 2., 6});
+    NDArray<double> exp('c', {2, 3, 3}, {2.,  0.,  0., 6., 1.,  0., -8.,  5.,  3., 1., 0., 0., 1., 1., 0,1., 1., 2.});
+
+    nd4j::ops::cholesky<double> op;
+
+    auto result = op.execute({&x}, {}, {});
+    ASSERT_EQ(result->status(), ND4J_STATUS_OK);
+    auto res = result->at(0);
+    //res->printIndexedBuffer("Output for Cholesky");
+    ASSERT_TRUE(exp.equalsTo(res));
+    delete result;
+}
+
+////////////////////////////////////////////////////////////////////
+// TEST_F(DeclarableOpsTests9, gru_bp_test1) {
+
+//     const int time = 5;
+//     const int bS   = 2;
+//     const int iS   = 3;
+//     const int nU   = 4;
+
+//     NDArray<double> x     ('c', {time, bS, iS});
+//     NDArray<double> h0    ('c', {bS, nU});
+//     NDArray<double> Wx    ('c', {iS, 3*nU});
+//     NDArray<double> Wh    ('c', {nU, 3*nU});
+//     NDArray<double> b     ('c', {3*nU});
+//     NDArray<double> dLdh  ('c', {time, bS, nU});
+
+//     x.linspace(0.5, 0.5);
+//     h0 = 1.;
+//     Wx = 0.003;
+//     Wh = 0.006;
+//     b  = 0.5;
+
+//     const OpArgsHolder<double> argsHolderFF({&x, &h0, &Wx, &Wh, &b}, {}, {});
+//     const OpArgsHolder<double> argsHolderBP({&x, &h0, &Wx, &Wh, &b, &dLdh}, {}, {});    
+
+//     nd4j::ops::gru<double> opFF;
+//     nd4j::ops::gru_bp<double> opBP;
+
+//     const bool isGradCorrect = GradCheck::checkGrad(opFF, opBP, argsHolderFF, argsHolderBP);
+
+//     ASSERT_TRUE(isGradCorrect);
+// }
+
+//  
